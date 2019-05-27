@@ -48,7 +48,7 @@ server <- function(input, output, session) {
 
   output$username <- renderText({
     if (is.null(token())) {
-      "Not logged in"
+      "Not logged in to GitHub"
     } else {
       resp <- httr::GET("https://api.github.com/user",
         httr::add_headers("Authorization" = paste("token", token()))
