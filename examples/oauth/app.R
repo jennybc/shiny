@@ -44,38 +44,37 @@ server <- function(input, output, session) {
 
   ### GITHUB
 
-  token <- callModule(oauth_login, id = "oauth_login", github_oauth_config)
-
-  output$username <- renderText({
-    if (is.null(token())) {
-      "Not logged in to GitHub"
-    } else {
-      resp <- httr::GET("https://api.github.com/user",
-        httr::add_headers("Authorization" = paste("token", token()))
-      )
-
-      paste0("Logged in as ", httr::content(resp)$login)
-    }
-  })
+  # token <- callModule(oauth_login, id = "oauth_login", github_oauth_config)
+  #
+  # output$username <- renderText({
+  #   if (is.null(token())) {
+  #     "Not logged in to GitHub"
+  #   } else {
+  #     resp <- httr::GET("https://api.github.com/user",
+  #       httr::add_headers("Authorization" = paste("token", token()))
+  #     )
+  #
+  #     paste0("Logged in as ", httr::content(resp)$login)
+  #   }
+  # })
 
 
 
   ## GOOGLE
 
-  # token <- callModule(oauth_login, id = "oauth_login", google_oauth_config)
-  #
-  # output$username <- renderText({
-  #   if (is.null(token())) {
-  #     # Not logged in
-  #     "(nobody)"
-  #   } else {
-  #     req <- gargle::request_build(method = "GET", path = "oauth2/v3/tokeninfo",
-  #       params = list(access_token=token()),
-  #       base_url = "https://www.googleapis.com")
-  #     resp <- gargle::request_make(req)
-  #     gargle::response_process(resp)$email
-  #   }
-  # })
+  token <- callModule(oauth_login, id = "oauth_login", google_oauth_config)
+
+  output$username <- renderText({
+    if (is.null(token())) {
+      "Not logged in to Google"
+    } else {
+      req <- gargle::request_build(method = "GET", path = "oauth2/v3/tokeninfo",
+        params = list(access_token=token()),
+        base_url = "https://www.googleapis.com")
+      resp <- gargle::request_make(req)
+      gargle::response_process(resp)$email
+    }
+  })
 }
 
 shinyApp(ui, server, options = list(port = 8100))
