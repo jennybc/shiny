@@ -37,44 +37,79 @@ ui <- fluidPage(
   textOutput("username", inline = TRUE),
   p(
     oauth_login_ui("oauth_login")
-  )
+  ),
+  verbatimTextOutput("userinfo")
 )
 
 server <- function(input, output, session) {
 
   ### GITHUB
 
-  # token <- callModule(oauth_login, id = "oauth_login", github_oauth_config)
-  #
-  # output$username <- renderText({
-  #   if (is.null(token())) {
-  #     "Not logged in to GitHub"
-  #   } else {
-  #     resp <- httr::GET("https://api.github.com/user",
-  #       httr::add_headers("Authorization" = paste("token", token()))
-  #     )
-  #
-  #     paste0("Logged in as ", httr::content(resp)$login)
-  #   }
-  # })
+  token <- callModule(oauth_login, id = "oauth_login", github_oauth_config)
 
+  output$username <- renderText({
+    if (is.null(token())) {
+      "Not logged in to GitHub"
+    } else {
+      resp <- httr::GET(
+        "https://api.github.com/user",
+        httr::config(token = token())
+      )
+      paste0("Logged in as ", httr::content(resp)$login)
+    }
+  })
+
+  output$userinfo <- renderPrint({
+    if (is.null(token())) {
+      "No userinfo"
+    } else {
+      resp <- httr::GET(
+        "https://api.github.com/user",
+        httr::config(token = token())
+      )
+      print(httr::content(resp))
+      print(head(iris))
+    }
+  })
 
 
   ## GOOGLE
 
-  token <- callModule(oauth_login, id = "oauth_login", google_oauth_config)
+  # token <- callModule(oauth_login, id = "oauth_login", google_oauth_config)
+  #
+  # output$username <- renderText({
+  #   if (is.null(token())) {
+  #     "Not logged in to Google"
+  #   } else {
+  #     req <- gargle::request_build(method = "GET", path = "oauth2/v3/tokeninfo",
+  #       params = list(access_token=token()),
+  #       base_url = "https://www.googleapis.com")
+  #     resp <- gargle::request_make(req)
+  #     gargle::response_process(resp)$email
+  #   }
+  # })
+  #
+  # output$googleuser <- renderText({
+  #   validate(
+  #     need(!is.null(token()),
+  #          message = "No user is currently authorized.")
+  #   )
+  #   token()
+  #   # drive_auth(token = token())
+  #   # x <- drive_user()
+  #   # line1 <- paste("kind:", x$kind)
+  #   # line2 <- paste("displayName:", x$displayName)
+  #   # line3 <- paste("emailAddress:", x$emailAddress)
+  #   #
+  #   # paste(line1, line2, line3, sep = "</br><h>")
+  # })
+  #
+  # output$table <- DT::renderDataTable(DT::datatable({
+  #   data <- head(iris, 3)
+  #   #input$man
+  #   data
+  # }))
 
-  output$username <- renderText({
-    if (is.null(token())) {
-      "Not logged in to Google"
-    } else {
-      req <- gargle::request_build(method = "GET", path = "oauth2/v3/tokeninfo",
-        params = list(access_token=token()),
-        base_url = "https://www.googleapis.com")
-      resp <- gargle::request_make(req)
-      gargle::response_process(resp)$email
-    }
-  })
 }
 
 shinyApp(ui, server, options = list(port = 8100))

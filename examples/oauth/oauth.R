@@ -86,7 +86,11 @@ oauth_login <- function(input, output, session, oauth_config) {
 
 oauth_request_state <- fastmap::fastmap()
 
-store_oauth_request_state <- function(rv, redirect_uri, token_endpoint_uri, client_id, client_secret, session = getDefaultReactiveDomain()) {
+store_oauth_request_state <- function(rv,
+                                      redirect_uri,
+                                      token_endpoint_uri,
+                                      client_id, client_secret,
+                                      session = getDefaultReactiveDomain()) {
   state <- shiny:::createUniqueId(16)
   oauth_request_state$set(state, list(
     rv = rv,
@@ -170,7 +174,21 @@ oauth_callback_handler <- function(req) {
     )
     respObj <- httr::content(resp, as = "parsed")
 
-    rv(respObj$access_token)
+    #rv(respObj$access_token)
+    app <- httr::oauth_app(
+      "shiny-oauth-sketch",
+      key = client_id,
+      secret = client_secret,
+      redirect_uri = redirect_uri
+    )
+    foo <- httr::Token2.0$new(
+      endpoint = httr::oauth_endpoints("github"),
+      app = app,
+      credentials = respObj,
+      cache_path = FALSE,
+      params = list(as_header = TRUE)
+    )
+    rv(foo)
 
     return(list(
       status = 200L,
