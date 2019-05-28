@@ -19,20 +19,33 @@ oauth_logout_button <- function(input_id) {
   actionLink(input_id, "Logout")
 }
 
-oauth_config <- function(oauth_endpoint_uri, token_endpoint_uri, app_uri,
-  client_id, client_secret, scope, login_ui = oauth_login_button,
-  logout_ui = oauth_logout_button) {
+oauth_config <- function(oauth_endpoint,
+                         oauth_app,
+                         app_uri,
+                         scopes,
+                         login_ui = oauth_login_button,
+                         logout_ui = oauth_logout_button) {
+  scope <- prepare_scopes(scopes)
 
   list(
-    oauth_endpoint_uri = oauth_endpoint_uri,
-    token_endpoint_uri = token_endpoint_uri,
+    oauth_endpoint = oauth_endpoint,
+    oauth_app = oauth_app,
     app_uri = app_uri,
-    client_id = client_id,
-    client_secret = client_secret,
     scope = scope,
     login_ui = login_ui,
     logout_ui = logout_ui
   )
+}
+
+prepare_scopes <- function(x) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+
+  if (!is.character(x)) {
+    stop("`scopes` must be a character vector", call. = FALSE)
+  }
+  paste(x, collapse = ' ')
 }
 
 # Server module for initializing oauth
@@ -53,17 +66,24 @@ oauth_login <- function(input, output, session, oauth_config) {
 
   redirect_uri <- sub("/?$", "/oauth_callback", oauth_config$app_uri)
 
-  state <- store_oauth_request_state(token,
-    redirect_uri,
-    oauth_config$token_endpoint_uri,
-    oauth_config$client_id,
-    oauth_config$client_secret,
-    session)
+  state <- store_oauth_request_state(
+    rv = token,
+    redirect_uri = redirect_uri,
+    oauth_endpoint = oauth_config$oauth_endpoint,
+    oauth_app = oauth_config$oauth_app,
+    session = session
+  )
 
   output$container <- renderUI({
     if (is.null(token())) {
       # login button
-      url <- make_authorization_url(oauth_config, redirect_uri, state, session)
+      url <- httr::oauth2.0_authorize_url(
+        endpoint = oauth_config$oauth_endpoint,
+        app = oauth_config$oauth_app,
+        scope = oauth_config$scope,
+        redirect_uri = redirect_uri,
+        state = state
+      )
 
       oauth_config$login_ui(url)
     } else {
@@ -88,16 +108,15 @@ oauth_request_state <- fastmap::fastmap()
 
 store_oauth_request_state <- function(rv,
                                       redirect_uri,
-                                      token_endpoint_uri,
-                                      client_id, client_secret,
+                                      oauth_endpoint,
+                                      oauth_app,
                                       session = getDefaultReactiveDomain()) {
   state <- shiny:::createUniqueId(16)
   oauth_request_state$set(state, list(
     rv = rv,
     redirect_uri = redirect_uri,
-    token_endpoint_uri = token_endpoint_uri,
-    client_id = client_id,
-    client_secret = client_secret
+    oauth_endpoint = oauth_endpoint,
+    oauth_app = oauth_app
   ))
 
   # In case the session ends, clean out the state so we don't leak memory
@@ -108,25 +127,6 @@ store_oauth_request_state <- function(rv,
   state
 }
 
-
-make_authorization_url <- function(oauth_config, redirect_uri, state, session = getDefaultReactiveDomain()) {
-  # TODO: Implement for real
-  #
-  # The req object is a Rook request. This is just an environment object that
-  # gives you access to the request URL, HTTP headers, etc. The documentation
-  # for this object is here:
-  # https://github.com/jeffreyhorner/Rook#the-environment
-  url_template <- "%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&access_type=offline&include_granted_scopes=true&scope=%s"
-  auth_url <- sprintf(url_template,
-    oauth_config$oauth_endpoint_uri,
-    utils::URLencode(oauth_config$client_id, reserved = TRUE, repeated = TRUE),
-    utils::URLencode(redirect_uri, reserved = TRUE, repeated = TRUE),
-    utils::URLencode(state, reserved = TRUE, repeated = TRUE),
-    utils::URLencode(oauth_config$scope, reserved = TRUE, repeated = TRUE)
-  )
-
-  auth_url
-}
 
 # This is the Rook handler that is invoked when the browser returns
 # from authenticating with the OAuth provider. Based on the `code`
@@ -156,39 +156,22 @@ oauth_callback_handler <- function(req) {
       # TODO: Report error to user
       stop("OAuth authentication request not recognized")
     }
-
-    redirect_uri <- req_info$redirect_uri
-    token_endpoint_uri <- req_info$token_endpoint_uri
-    client_id <- req_info$client_id
-    client_secret <- req_info$client_secret
     rv <- req_info$rv
 
-    resp <- httr::POST(token_endpoint_uri,
-      body = list(
-        client_id = client_id,
-        code = code,
-        redirect_uri = redirect_uri,
-        grant_type = "authorization_code",
-        client_secret = client_secret
-      )
+    credentials <- httr::oauth2.0_access_token(
+      endpoint = req_info$oauth_endpoint,
+      app = req_info$oauth_app,
+      code,
+      redirect_uri = req_info$redirect_uri,
     )
-    respObj <- httr::content(resp, as = "parsed")
-
-    #rv(respObj$access_token)
-    app <- httr::oauth_app(
-      "shiny-oauth-sketch",
-      key = client_id,
-      secret = client_secret,
-      redirect_uri = redirect_uri
-    )
-    foo <- httr::Token2.0$new(
-      endpoint = httr::oauth_endpoints("github"),
-      app = app,
-      credentials = respObj,
+    t <- httr::Token2.0$new(
+      endpoint = req_info$oauth_endpoint,
+      app = req_info$oauth_app,
+      credentials = credentials,
       cache_path = FALSE,
       params = list(as_header = TRUE)
     )
-    rv(foo)
+    rv(t)
 
     return(list(
       status = 200L,
@@ -199,7 +182,7 @@ oauth_callback_handler <- function(req) {
         # TODO: secure (optionally)
         # TODO: escaping
         # TODO: path/samesite
-        "Set-Cookie" = sprintf("shinyoauthaccesstoken=%s; HttpOnly; Path=/", respObj$access_token)
+        "Set-Cookie" = sprintf("shinyoauthaccesstoken=%s; HttpOnly; Path=/", credentials$access_token)
       ),
       body = as.character(
         tags$html(
