@@ -34,68 +34,73 @@ google_oauth_config <- oauth_config(
 
 
 ui <- fluidPage(
-  textOutput("username", inline = TRUE),
+  textOutput("username_github", inline = TRUE),
   p(
-    oauth_login_ui("oauth_login")
+    oauth_login_ui("oauth_login_github")
   ),
-  verbatimTextOutput("userinfo")
+  verbatimTextOutput("userinfo_github"),
+  textOutput("username_google", inline = TRUE),
+  p(
+    oauth_login_ui("oauth_login_google")
+  ),
+  verbatimTextOutput("userinfo_google")
 )
 
 server <- function(input, output, session) {
 
   ### GITHUB
 
-  token <- callModule(oauth_login, id = "oauth_login", github_oauth_config)
+  token_github <- callModule(oauth_login, id = "oauth_login_github", github_oauth_config)
 
-  output$username <- renderText({
-    if (is.null(token())) {
+  output$username_github <- renderText({
+    if (is.null(token_github())) {
       "Not logged in to GitHub"
     } else {
       resp <- httr::GET(
         "https://api.github.com/user",
-        httr::config(token = token())
+        httr::config(token = token_github())
       )
       paste0("Logged in as ", httr::content(resp)$login)
     }
   })
 
-  output$userinfo <- renderPrint({
+  output$userinfo_github <- renderPrint({
     validate(
-      need(!is.null(token()), message = "No current user")
+      need(!is.null(token_github()), message = "No current user")
     )
     resp <- httr::GET(
       "https://api.github.com/user",
-      httr::config(token = token())
+      httr::config(token = token_github())
     )
-    httr::content(resp)
+    httr::content(resp)[c("name", "login", "id", "bio", "public_repos", "followers")]
   })
 
   ## GOOGLE
 
-  # token <- callModule(oauth_login, id = "oauth_login", google_oauth_config)
-  #
-  # output$username <- renderText({
-  #   if (is.null(token())) {
-  #     "Not logged in to Google"
-  #   } else {
-  #     gargle:::get_email(token())
-  #   }
-  # })
-  #
-  # output$userinfo <- renderPrint({
-  #   validate(
-  #     need(!is.null(token()), message = "No current user")
-  #   )
-  #   gargle:::get_userinfo(token())
-  #   # drive_auth(token = token())
-  #   # drive_user()
-  # })
-  #
-  # output$table <- DT::renderDataTable(DT::datatable({
-  #   data <- head(iris, 3)
-  #   #input$man
-  #   data
-  # }))
+  token_google <- callModule(oauth_login, id = "oauth_login_google", google_oauth_config)
+
+  output$username_google <- renderText({
+    if (is.null(token_google())) {
+      "Not logged in to Google"
+    } else {
+      gargle:::get_email(token_google())
+    }
+  })
+
+  output$userinfo_google <- renderPrint({
+    validate(
+      need(!is.null(token_google()), message = "No current user")
+    )
+    gargle:::get_userinfo(token_google())
+    # drive_auth(token = token_google())
+    # drive_user()
+  })
+
+  output$table <- DT::renderDataTable(DT::datatable({
+    data <- head(iris, 3)
+    #input$man
+    data
+  }))
 
 }
 
