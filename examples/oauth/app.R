@@ -52,6 +52,8 @@ ui <- fluidPage(
   ),
   verbatimTextOutput("userinfo_github"),
 
+  hr(),
+
   # GOOGLE
   textOutput("username_google", inline = TRUE),
   p(
@@ -114,15 +116,7 @@ server <- function(input, output, session) {
     )
     str(token_google()$credentials)
     gargle:::get_userinfo(token_google())
-    # drive_auth(token = token_google())
-    # drive_user()
   })
-
-  output$table <- DT::renderDataTable(DT::datatable({
-    data <- head(iris, 3)
-    #input$man
-    data
-  }))
 
 }
 
